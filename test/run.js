@@ -11,11 +11,17 @@ const waMock = {
 };
 
 let nextExtraction = null;
+let nextClassification = { crianca: null, viagem: null };
 let claudeCallCount = 0;
+let classifyCallCount = 0;
 const claudeMock = {
   extractFromImage: async () => {
     claudeCallCount++;
     return nextExtraction;
+  },
+  classifyMessage: async () => {
+    classifyCallCount++;
+    return nextClassification;
   },
   answerFreeQuestion: async (q, ctx) => `Resposta simulada para: ${q} (contexto: ${JSON.stringify(ctx)})`
 };
@@ -23,7 +29,7 @@ const claudeMock = {
 require.cache[waMockPath] = { id: waMockPath, filename: waMockPath, loaded: true, exports: waMock };
 require.cache[claudeMockPath] = { id: claudeMockPath, filename: claudeMockPath, loaded: true, exports: claudeMock };
 
-const { handleMessage } = require('../lib/flows');
+const { handleMessage, getState } = require('../lib/flows');
 
 function assert(cond, msg) {
   if (!cond) { console.error('FAIL:', msg); process.exitCode = 1; }
@@ -37,22 +43,36 @@ function btn(title) {
 async function main() {
   const phone = '5511999990000';
 
-  // 1. Primeira mensagem -> onboarding começa, com aviso de consentimento (LGPD)
+  // 1. Primeira mensagem -> onboarding curto (3 mensagens), sem pedir nome/idade do filho
   sent.length = 0;
   await handleMessage(phone, { type: 'text', text: { body: 'Oi' } });
-  assert(sent.length === 1 && sent[0].body.includes('Sou o TEKOA'), 'primeira mensagem dispara onboarding');
-  assert(sent[0].body.toLowerCase().includes('apagar meus dados'), 'onboarding menciona direito de exclusão (LGPD)');
+  assert(sent.length === 3, 'onboarding manda 3 mensagens curtas, não um parágrafo único');
+  assert(sent[0].body.includes('Sou o TEKOA'), 'primeira mensagem se apresenta');
+  assert(sent[1].body.includes('VIAGENS'), 'onboarding já menciona o domínio de viagem');
+  assert(sent[2].body.toLowerCase().includes('apagar meus dados'), 'onboarding menciona direito de exclusão (LGPD)');
+  assert(!sent.some((s) => s.kind === 'buttons'), 'onboarding não pergunta nome nem idade com botões');
 
-  // 2. Nome do filho (sem pedir idade na mesma pergunta)
-  sent.length = 0;
-  await handleMessage(phone, { type: 'text', text: { body: 'Joca' } });
-  assert(sent[0].kind === 'buttons', 'idade é perguntada com botões, não texto livre');
-  assert(sent[0].buttons.length === 3, 'no máximo 3 botões de faixa etária (limite do WhatsApp)');
+  let state = await getState(phone);
+  assert(state.stage === 'ready' && state.family.children.length === 0, 'onboarding termina em "ready" sem criar filho nenhum');
 
-  // 3. Idade via botão
+  // 2. Filho mencionado naturalmente (nome + idade, alta confiança) -> é novo -> confirma antes de gravar
+  nextClassification = { crianca: { nome: 'Joca', idade: 4, confianca: 'alta' }, viagem: null };
   sent.length = 0;
-  await handleMessage(phone, btn('3–6 anos'));
-  assert(sent[0].body.includes('Pronto'), 'onboarding conclui sem perguntar escola');
+  await handleMessage(phone, { type: 'text', text: { body: 'meu filho Joca tem 4 anos' } });
+  assert(sent[0].kind === 'buttons' && sent[0].body.includes('Joca'), 'primeira menção a um filho novo gera confirmação');
+  assert(sent[0].buttons.includes('Sim, confere'), 'botão de confirmação presente');
+
+  sent.length = 0;
+  await handleMessage(phone, btn('Sim, confere'));
+  assert(sent[0].kind === 'text' && sent[0].body.includes('Anotado'), 'confirmação grava o filho');
+  state = await getState(phone);
+  assert(state.family.children.length === 1 && state.family.children[0].name === 'Joca' && state.family.children[0].age === '4', 'Joca fica cadastrado com nome e idade');
+
+  // 3. Mesmo filho mencionado de novo, sem novidade, alta confiança -> NÃO confirma de novo
+  nextClassification = { crianca: { nome: 'Joca', idade: 4, confianca: 'alta' }, viagem: null };
+  sent.length = 0;
+  await handleMessage(phone, { type: 'text', text: { body: 'o Joca foi pra escola hoje' } });
+  assert(sent.length === 1 && sent[0].kind === 'text' && sent[0].body.includes('Entendido'), 'filho já conhecido não gera confirmação de novo');
 
   // 4. Bilhete com data relativa ambígua -> TEKOA pergunta antes de assumir
   nextExtraction = {
@@ -84,7 +104,8 @@ async function main() {
   assert(sent.length === 1 && sent[0].kind === 'text', 'documento fora de escopo não gera card de confirmação');
   assert(sent[0].body.toLowerCase().includes('não'), 'TEKOA explica que não vai guardar o documento');
 
-  // 8. Pergunta livre
+  // 8. Pergunta livre pura (sem filho nem viagem) -> cai no Claude com contexto da família
+  nextClassification = { crianca: null, viagem: null };
   sent.length = 0;
   await handleMessage(phone, { type: 'text', text: { body: 'o que o joca precisa levar essa semana?' } });
   assert(sent[0].body.includes('Resposta simulada'), 'pergunta livre é roteada para o Claude com contexto da família');
@@ -94,7 +115,42 @@ async function main() {
   await handleMessage(phone, { type: 'audio', audio: { id: 'audio123' } });
   assert(sent[0].body.includes('ainda não transcrevo'), 'áudio recebe resposta de stub, não quebra');
 
-  // 10. Exclusão de dados (LGPD) -> apaga e reinicia
+  // 10. Viagem mencionada num número novo (estado limpo), criança sem nome -> TEKOA
+  // não afirma nada, pergunta o nome antes de gravar qualquer coisa.
+  const tripPhone = '5511777770000';
+  nextClassification = {
+    crianca: { nome: null, idade: 3, confianca: 'baixa' },
+    viagem: {
+      destino: 'Colômbia',
+      data_ida_absoluta: null,
+      data_ida_relativa: null,
+      data_volta_absoluta: null,
+      data_volta_relativa: null,
+      viajantes: ['menino de 3 anos'],
+      hospedagem: null,
+      confianca: 'baixa'
+    }
+  };
+  sent.length = 0;
+  await handleMessage(tripPhone, { type: 'text', text: { body: 'Oi' } }); // onboarding primeiro
+  sent.length = 0;
+  await handleMessage(tripPhone, { type: 'text', text: { body: 'vamos viajar pra Colômbia com o menino de 3 anos' } });
+  assert(sent.length === 1 && sent[0].kind === 'text', 'viagem com criança sem nome não usa botões, pergunta o nome em texto');
+  assert(sent[0].body.includes('Colômbia') && sent[0].body.toLowerCase().includes('nome'), 'pergunta o nome da criança antes de gravar a viagem');
+  let tripState = await getState(tripPhone);
+  assert((tripState.trips || []).length === 0, 'nada é gravado antes do nome ser confirmado');
+
+  // 11. Responde o nome -> cadastra o filho, grava a viagem e devolve checklist consultivo
+  sent.length = 0;
+  await handleMessage(tripPhone, { type: 'text', text: { body: 'Lucas' } });
+  assert(sent.length === 1 && sent[0].kind === 'text', 'resposta final é um texto único com o resumo');
+  assert(sent[0].body.includes('Lucas') && sent[0].body.includes('Colômbia'), 'confirma nome e destino no mesmo texto');
+  assert(sent[0].body.toLowerCase().includes('passaporte') && sent[0].body.toLowerCase().includes('vacina'), 'checklist consultivo menciona passaporte e vacina sem afirmar regra como fato');
+  tripState = await getState(tripPhone);
+  assert(tripState.family.children.length === 1 && tripState.family.children[0].name === 'Lucas' && tripState.family.children[0].age === '3', 'Lucas fica cadastrado com 3 anos');
+  assert(tripState.trips.length === 1 && tripState.trips[0].destino === 'Colômbia' && tripState.trips[0].viajantes.includes('Lucas'), 'viagem pra Colômbia gravada com Lucas como viajante');
+
+  // 12. Exclusão de dados (LGPD) -> apaga e reinicia
   sent.length = 0;
   await handleMessage(phone, { type: 'text', text: { body: 'quero apagar meus dados' } });
   assert(sent[0].body.toLowerCase().includes('apaguei'), 'comando de exclusão confirma a remoção');
@@ -102,12 +158,13 @@ async function main() {
   await handleMessage(phone, { type: 'text', text: { body: 'oi' } });
   assert(sent[0].body.includes('Sou o TEKOA'), 'depois de apagar, onboarding recomeça do zero');
 
-  // 11. Segundo usuário -> onboarding do zero (estado isolado por telefone)
+  // 13. Terceiro usuário -> onboarding do zero (estado isolado por telefone)
   sent.length = 0;
   await handleMessage('5511888880000', { type: 'text', text: { body: 'oi' } });
   assert(sent[0].body.includes('Sou o TEKOA'), 'novo número inicia onboarding independente');
 
   console.log('\nclaude.extractFromImage foi chamado', claudeCallCount, 'vezes');
+  console.log('claude.classifyMessage foi chamado', classifyCallCount, 'vezes');
 }
 
 main().catch((e) => { console.error('ERRO NÃO TRATADO:', e); process.exitCode = 1; });
