@@ -115,6 +115,60 @@ async function main() {
   await handleMessage(phone, { type: 'audio', audio: { id: 'audio123' } });
   assert(sent[0].body.includes('ainda não transcrevo'), 'áudio recebe resposta de stub, não quebra');
 
+  // 9b. Filho já conhecido (Joca) mencionado junto com uma viagem nova -> confirma
+  // só a viagem, não repete a apresentação do filho que já está cadastrado.
+  nextClassification = {
+    crianca: { nome: 'Joca', idade: 4, confianca: 'alta' },
+    viagem: {
+      destino: 'Portugal',
+      data_ida_absoluta: null,
+      data_ida_relativa: 'em outubro',
+      data_volta_absoluta: null,
+      data_volta_relativa: null,
+      viajantes: ['Joca'],
+      hospedagem: null,
+      confianca: 'alta'
+    }
+  };
+  sent.length = 0;
+  await handleMessage(phone, { type: 'text', text: { body: 'o Joca vai viajar pra Portugal com a gente em outubro' } });
+  assert(sent[0].kind === 'buttons' && sent[0].body.includes('Portugal'), 'filho já conhecido + viagem nova gera confirmação (só da viagem)');
+  assert(!sent[0].body.includes('chamado(a) Joca'), 'não repete a apresentação do filho já cadastrado, só confirma a viagem');
+
+  sent.length = 0;
+  await handleMessage(phone, btn('Sim, confere'));
+  assert(sent[0].kind === 'text' && sent[0].body.includes('Portugal'), 'confirmação grava a viagem e devolve o checklist');
+  state = await getState(phone);
+  assert(state.family.children.length === 1, 'não duplica o filho já cadastrado');
+  assert(
+    state.trips.length === 1 && state.trips[0].destino === 'Portugal' && state.trips[0].viajantes.includes('Joca'),
+    'viagem pra Portugal gravada com Joca como viajante'
+  );
+
+  // 9c. Botão "Corrigir" cancela a confirmação pendente sem gravar nada.
+  nextClassification = {
+    crianca: null,
+    viagem: {
+      destino: 'Argentina',
+      data_ida_absoluta: null,
+      data_ida_relativa: null,
+      data_volta_absoluta: null,
+      data_volta_relativa: null,
+      viajantes: ['Joca'],
+      hospedagem: null,
+      confianca: 'alta'
+    }
+  };
+  sent.length = 0;
+  await handleMessage(phone, { type: 'text', text: { body: 'ah, e também pra Argentina ano que vem' } });
+  assert(sent[0].kind === 'buttons', 'segunda viagem nova também pede confirmação antes de gravar');
+
+  sent.length = 0;
+  await handleMessage(phone, btn('Corrigir'));
+  assert(sent[0].kind === 'text', 'ao escolher "Corrigir", TEKOA responde em texto pedindo a correção');
+  state = await getState(phone);
+  assert(state.trips.length === 1, 'nada é gravado quando o usuário escolhe "Corrigir" — continua só a viagem de Portugal');
+
   // 10. Viagem mencionada num número novo (estado limpo), criança sem nome -> TEKOA
   // não afirma nada, pergunta o nome antes de gravar qualquer coisa.
   const tripPhone = '5511777770000';
