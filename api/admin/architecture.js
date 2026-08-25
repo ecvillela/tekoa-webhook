@@ -1,5 +1,5 @@
 const { isAuthorized } = require('../../lib/admin');
-const { checkKV, checkWhatsAppToken, checkAnthropicKey, checkEnvPresence } = require('../../lib/health');
+const { checkKV, checkWhatsAppToken, checkWabaSubscription, checkAnthropicKey, checkEnvPresence } = require('../../lib/health');
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -26,6 +26,12 @@ function box(title, subtitle, statusOk, detail) {
   </div>`;
 }
 
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 const arrowDown = `<div style="text-align:center;font-size:20px;color:#aaa;line-height:1;margin:2px 0;">↓</div>`;
 const arrowRight = `<div style="display:flex;align-items:center;justify-content:center;font-size:20px;color:#aaa;padding:0 6px;">→</div>`;
 
@@ -37,13 +43,26 @@ module.exports = async (req, res) => {
   }
 
   const token = req.query.token;
-  const [kv, wa] = await Promise.all([checkKV(), checkWhatsAppToken()]);
+  const [kv, wa, waba] = await Promise.all([checkKV(), checkWhatsAppToken(), checkWabaSubscription()]);
   const claude = checkAnthropicKey();
+
+  // Resumo de validade do token, pra mostrar no card e na tabela de env vars.
+  let tokenValidityLine = 'não foi possível checar (token ausente ou Graph API indisponível)';
+  if (wa.tokenInfo) {
+    if (wa.tokenInfo.neverExpires) {
+      tokenValidityLine = `permanente — não expira${wa.tokenInfo.valid ? '' : ' (mas is_valid=false, revogado?)'}`;
+    } else if (wa.tokenInfo.expiresAt) {
+      tokenValidityLine = `expira em ${fmtDate(wa.tokenInfo.expiresAt)}${wa.tokenInfo.valid ? '' : ' (já inválido)'}`;
+    } else {
+      tokenValidityLine = wa.tokenInfo.valid ? 'válido, validade não informada pela Meta' : 'inválido';
+    }
+  }
 
   const envRows = checkEnvPresence([
     'WHATSAPP_VERIFY_TOKEN',
     'WHATSAPP_ACCESS_TOKEN',
     'WHATSAPP_PHONE_NUMBER_ID',
+    'WHATSAPP_BUSINESS_ACCOUNT_ID',
     'ANTHROPIC_API_KEY',
     'ADMIN_TOKEN',
     'TEKOA_BASE_URL',
@@ -55,8 +74,9 @@ module.exports = async (req, res) => {
 
   const envNotes = {
     WHATSAPP_VERIFY_TOKEN: 'Precisa ser IDÊNTICO ao "Verificar token" salvo no Meta (app 1425427812730921, aba Webhooks → Whatsapp Business Account). Se um lado mudar sem sincronizar o outro, a verificação falha silenciosamente.',
-    WHATSAPP_ACCESS_TOKEN: '⚠️ Se for o token temporário do WhatsApp Manager, expira em 24h. Trocar por token permanente de System User assim que possível.',
+    WHATSAPP_ACCESS_TOKEN: `Validade ao vivo: ${tokenValidityLine}. Se voltar a expirar, gere um novo em Casos de uso → Personalizar → Etapa 2. Configuração de produção → "Enviar mensagem" → "gere um token" (esse é permanente, não o de 24h da Etapa 1).`,
     WHATSAPP_PHONE_NUMBER_ID: 'ID do número, não confundir com o WABA ID (1083067681382657).',
+    WHATSAPP_BUSINESS_ACCOUNT_ID: 'Opcional, mas recomendado: com essa variável o painel consegue checar ao vivo se a WABA está inscrita no app certo (a causa mais comum de "chega no WhatsApp mas não aparece no webhook"). Valor: 1083067681382657.',
     ANTHROPIC_API_KEY: 'Precisa de saldo em console.anthropic.com. Sem crédito, mensagens chegam mas o TEKOA não responde (erro "invalid x-api-key" nos logs).',
     ADMIN_TOKEN: 'Protege este painel e o /api/admin/dashboard. Não compartilhar o link com o token.',
     TEKOA_BASE_URL: 'Usado pra montar o link do .ics de calendário.',
@@ -73,14 +93,16 @@ module.exports = async (req, res) => {
         <td>${dot(e.ok)}${e.ok ? 'configurada' : 'ausente'}</td>
         <td style="font-size:12px;color:#555;">${esc(envNotes[e.name] || '')}</td>
       </tr>`
-    )
     .join('');
 
   const links = [
     ['App Meta (TEKOA / MTG consultoria)', 'https://developers.facebook.com/apps/1425427812730921/dashboard/'],
     ['Webhooks do app (URL + token + campos)', 'https://developers.facebook.com/apps/1425427812730921/use_cases/customize/webhooks/'],
+    ['Gerar token de acesso (Etapa 2 → Enviar mensagem)', 'https://developers.facebook.com/apps/1425427812730921/use_cases/customize/wa-configurations-v2/'],
+    ['Graph API Explorer (checar WABA, token, subscribed_apps)', 'https://developers.facebook.com/tools/explorer/'],
     ['WhatsApp Manager — números', 'https://business.facebook.com/wa/manage/phone-numbers/'],
-    ['Business Manager (MTG consultoria)', 'https://business.facebook.com/settings/'],
+    ['Business Manager (MTG consultoria) — quem tem acesso', 'https://business.facebook.com/settings/people'],
+    ['Business Manager — usuários do sistema', 'https://business.facebook.com/settings/system-users'],
     ['Vercel — projeto tekoa-webhook', 'https://vercel.com/ecvillelas-projects/tekoa-webhook'],
     ['Vercel — variáveis de ambiente', 'https://vercel.com/ecvillelas-projects/tekoa-webhook/settings/environment-variables'],
     ['Vercel — logs em tempo real', 'https://vercel.com/ecvillelas-projects/tekoa-webhook/logs'],
@@ -129,14 +151,34 @@ module.exports = async (req, res) => {
     <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde</a>
   </nav>
 
-  <h2>Fluxo de uma mensagem</h2>
+  <h2>Quem tem acesso a tudo isso</h2>
   <div class="diagram">
     <div class="diagram-col">
-      ${box('Usuário', 'App do WhatsApp', null, 'Manda "oi", foto, áudio...')}
+      ${box('Login Meta (Eduardo)', 'Conta pessoal do Facebook', null, 'É a partir desse login que existe admin no Business "MTG consultoria", no app TEKOA e na WABA. Se essa conta perder acesso (senha, 2FA, remoção), todo o resto para.')}
     </div>
     ${arrowRight}
     <div class="diagram-col">
-      ${box('Meta / WhatsApp Business API', `App 1425427812730921 · WABA 1083067681382657`, wa.ok, wa.detail)}
+      ${box('Business Manager', 'MTG consultoria · id 27763707096627490', null, 'Dono do app correto. Existe outro Business ("Tekoa") com um app TEKOA diferente (1615679436948218) — não é esse que usamos.')}
+    </div>
+    ${arrowRight}
+    <div class="diagram-col">
+      ${box('App Meta', 'TEKOA · 1425427812730921', true, 'Publicado. Onde ficam configurados o webhook (URL + token) e os campos inscritos (messages).')}
+    </div>
+    ${arrowRight}
+    <div class="diagram-col">
+      ${box('WABA → App', 'WhatsApp Business Account 1083067681382657', waba.ok, waba.detail)}
+    </div>
+  </div>
+  <div style="font-size:12px;color:#888;margin:-16px 0 8px;">Acesso: <a href="https://business.facebook.com/settings/people" target="_blank" rel="noopener">Business Settings → Pessoas</a> mostra quem é admin. Melhor prática de longo prazo: criar um Usuário do Sistema dedicado (não depende de login pessoal) — ainda pendente, ver checklist abaixo.</div>
+
+  <h2>Fluxo de uma mensagem</h2>
+  <div class="diagram">
+    <div class="diagram-col">
+      ${box('Usuário', 'App do WhatsApp', null, 'Manda "oi", foto, áudio... pro número certo: +55 11 98935-9155')}
+    </div>
+    ${arrowRight}
+    <div class="diagram-col">
+      ${box('Meta / WhatsApp Business API', `Token: ${tokenValidityLine}`, wa.ok, wa.detail)}
     </div>
     ${arrowRight}
     <div class="diagram-col">
@@ -167,12 +209,14 @@ module.exports = async (req, res) => {
   <h2>Quando quebrar, comece por aqui (lição de 25/08/2026)</h2>
   <div class="card">
     <ol class="checklist">
-      <li>O app Meta certo é o <strong>1425427812730921</strong> (Business "MTG consultoria") — existe um outro "TEKOA" (1615679436948218, Business "Tekoa") que NÃO é o usado. Confirme com <code>GET /{WABA_ID}/subscribed_apps</code> no Graph API Explorer se tiver dúvida.</li>
+      <li>O app Meta certo é o <strong>1425427812730921</strong> (Business "MTG consultoria") — existe um outro "TEKOA" (1615679436948218, Business "Tekoa") que NÃO é o usado.</li>
       <li><strong>WHATSAPP_VERIFY_TOKEN</strong> no Vercel precisa ser idêntico ao "Verificar token" salvo no Meta. Se o Meta pedir pra reinserir o token ao clicar "Verificar e salvar", é sinal de dessincronia.</li>
       <li>O app precisa estar <strong>Publicado</strong> (não "Não publicado") — sem isso, dados de produção reais não chegam no webhook, só testes manuais do painel. Publicar exige URL de Política de Privacidade válida (confira se não tem erro de digitação) e ícone do app.</li>
       <li><strong>Vercel → Deployment Protection → Vercel Authentication</strong> precisa estar DESLIGADO. Se estiver ligado, até em "Standard Protection", o domínio padrão <code>*.vercel.app</code> fica protegido e bloqueia a Meta silenciosamente (sem aparecer nem no log, nem no firewall).</li>
       <li><strong>ANTHROPIC_API_KEY</strong> precisa existir e ter saldo — sem isso, a mensagem chega mas o TEKOA não consegue processar (erro "invalid x-api-key" nos logs).</li>
-      <li><strong>WHATSAPP_ACCESS_TOKEN</strong> temporário expira em 24h — se parar de funcionar do nada depois de um dia, é isso.</li>
+      <li><strong>WHATSAPP_ACCESS_TOKEN</strong>: existem dois jeitos de gerar. O da Etapa 1 (Experimente) é só pro número de teste e expira em 24h. O bom é o de Etapa 2 → Configuração de produção → "Enviar mensagem" → botão "gere um token" — esse sai como permanente (ver validade ao vivo na tabela acima). O caminho de "Usuário do Sistema" (Business Settings) é o ideal a longo prazo mas pode falhar com "Erro ao realizar a consulta" se a empresa não estiver verificada — nesse caso, use a Etapa 2.</li>
+      <li><strong>A WABA precisa estar inscrita no app</strong> (<code>GET /{WABA_ID}/subscribed_apps</code> deve retornar o app 1425427812730921). Sem essa inscrição — que é um passo separado da configuração do app e não tem botão óbvio na UI nova da Meta — mensagens reais somem sem deixar rastro em lugar nenhum, mesmo com o botão "Teste" do painel Meta funcionando normalmente. É a causa mais comum e mais escondida de "mensagem chega no WhatsApp mas nunca aparece no log do Vercel".</li>
+      <li>Se tudo acima checar OK e mesmo assim nada chega: confirme que está mandando mensagem pro número <strong>certo</strong> (já trocamos de número mais de uma vez neste projeto — um contato salvo antigo no seu WhatsApp pode apontar pro número errado).</li>
     </ol>
   </div>
 
