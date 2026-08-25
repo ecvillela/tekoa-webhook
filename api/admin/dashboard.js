@@ -66,6 +66,9 @@ module.exports = async (req, res) => {
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f6f2; color: #1a2e2a; margin: 0; padding: 24px; }
   h1 { font-size: 20px; margin-bottom: 4px; }
   .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
+  nav { margin-bottom: 18px; font-size: 13px; }
+  nav a { color: #0f6e56; text-decoration: none; margin-right: 16px; }
+  nav a:hover { text-decoration: underline; }
   table { border-collapse: collapse; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
   th, td { padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid #eee; }
   th { background: #0f6e56; color: #fff; font-weight: 600; position: sticky; top: 0; }
@@ -75,6 +78,10 @@ module.exports = async (req, res) => {
 </style>
 </head>
 <body>
+  <nav>
+    <a href="/api/admin/dashboard?token=${esc(token)}">Painel interno (famílias)</a>
+    <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde do Sistema →</a>
+  </nav>
   <h1>TEKOA — Painel interno</h1>
   <div class="sub">${families.length} família(s) cadastrada(s). Só visível com o token de admin — não compartilhe este link.</div>
   ${
