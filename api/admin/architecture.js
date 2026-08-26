@@ -78,12 +78,12 @@ module.exports = async (req, res) => {
           appCheckLine += isTekoaApp
             ? ' Esse É o app TEKOA correto (1425427812730921).'
                   : ` Esse NÃO é o app TEKOA — o esperado é 1425427812730921. Gere um token novo dentro do app certo: Meta for Developers → app 1425427812730921 → Casos de uso → Personalizar → Etapa 2. Configuração de produção → "Enviar mensagem" → "gere um token".`;
+        appCheckLine += ` Escopos do token: ${(wa.tokenInfo.scopes && wa.tokenInfo.scopes.length) ? wa.tokenInfo.scopes.join(', ') : 'nenhum retornado pelo debug_token'}.`;
           if (subscribedIds.length) {
                   appCheckLine += inSubscribed
                     ? ' Esse app_id está na lista de apps inscritos na WABA (bate certinho).'
                             : ` Esse app_id NÃO está entre os inscritos na WABA (${subscribedIds.join(', ')}) — é uma causa raiz muito provável de mensagens reais não chegarem no webhook.`;
-              appCheckLine += ` Escopos do token: ${(wa.tokenInfo.scopes && wa.tokenInfo.scopes.length) ? wa.tokenInfo.scopes.join(', ') : 'nenhum retornado pelo debug_token'}.`;
-          }
+          }              
     }
 
     const envRows = checkEnvPresence([
