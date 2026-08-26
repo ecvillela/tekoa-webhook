@@ -82,6 +82,7 @@ module.exports = async (req, res) => {
                   appCheckLine += inSubscribed
                     ? ' Esse app_id está na lista de apps inscritos na WABA (bate certinho).'
                             : ` Esse app_id NÃO está entre os inscritos na WABA (${subscribedIds.join(', ')}) — é uma causa raiz muito provável de mensagens reais não chegarem no webhook.`;
+              appCheckLine += ` Escopos do token: ${(wa.tokenInfo.scopes && wa.tokenInfo.scopes.length) ? wa.tokenInfo.scopes.join(', ') : 'nenhum retornado pelo debug_token'}.`;
           }
     }
 
