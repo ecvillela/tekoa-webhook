@@ -1,5 +1,5 @@
 const { isAuthorized } = require('../../lib/admin');
-const { checkKV, checkWhatsAppToken, checkWabaSubscription, checkAnthropicKey, checkEnvPresence } = require('../../lib/health');
+const { checkKV, checkWhatsAppToken, checkWabaSubscription, checkAnthropicKey, checkGeminiKey, checkEnvPresence } = require('../../lib/health');
 
 const TEKOA_APP_ID = '1425427812730921';
 
@@ -92,7 +92,10 @@ module.exports = async (req, res) => {
           'WHATSAPP_PHONE_NUMBER_ID',
           'WHATSAPP_BUSINESS_ACCOUNT_ID',
           'ANTHROPIC_API_KEY',
-          'ADMIN_TOKEN',
+'GEMINI_API_KEY',
+        'AI_PROVIDER',
+        'AI_COMPARE_PRIMARY',
+        'ADMIN_TOKEN',
           'TEKOA_BASE_URL',
           'KV_REST_API_URL',
           'KV_REST_API_TOKEN',
@@ -106,7 +109,10 @@ module.exports = async (req, res) => {
           WHATSAPP_PHONE_NUMBER_ID: 'ID do número, não confundir com o WABA ID (1083067681382657).',
           WHATSAPP_BUSINESS_ACCOUNT_ID: 'Opcional, mas recomendado: com essa variável o painel consegue checar ao vivo se a WABA está inscrita no app certo (a causa mais comum de "chega no WhatsApp mas não aparece no webhook"). Valor: 1083067681382657.',
           ANTHROPIC_API_KEY: 'Precisa de saldo em console.anthropic.com. Sem crédito, mensagens chegam mas o TEKOA não responde (erro "invalid x-api-key" nos logs).',
-          ADMIN_TOKEN: 'Protege este painel e o /api/admin/dashboard. Não compartilhar o link com o token.',
+GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey). Opcional — só necessária se AI_PROVIDER usa gemini ou compare.',
+        AI_PROVIDER: 'Controla qual IA processa as mensagens: claude (padrão), gemini, ou compare (roda os dois em paralelo, usa a resposta do AI_COMPARE_PRIMARY e loga a do outro nos logs do Vercel). Se o provedor escolhido falhar, cai automaticamente pro outro.',
+        AI_COMPARE_PRIMARY: 'Só usado quando AI_PROVIDER=compare. Qual resposta é de fato enviada pra família: claude (padrão) ou gemini. A do outro provedor só é logada, pra comparação.',
+        ADMIN_TOKEN: 'Protege este painel e o /api/admin/dashboard. Não compartilhar o link com o token.',
           TEKOA_BASE_URL: 'Usado pra montar o link do .ics de calendário.',
           KV_REST_API_URL: 'Upstash Redis — guarda o estado de cada família.',
           KV_REST_API_TOKEN: 'Token do Upstash Redis.',
