@@ -1,4 +1,5 @@
 const { isAuthorized, listFamilies } = require('../../lib/admin');
+const { kvGet } = require('../../lib/state');
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -39,6 +40,26 @@ module.exports = async (req, res) => {
   const families = await listFamilies();
   const token = req.query.token;
 
+  // Detalhe do que foi extraído de cada documento. Sem isto o painel só conta
+  // documentos, e não dá pra auditar o que o TEKOA entendeu de cada foto.
+  const logs = {};
+  for (const f of families) {
+    const st = await kvGet(`state:${f.phone}`);
+    logs[f.phone] = (st && st.log) || [];
+  }
+
+  const logDetail = (f) => {
+    const entries = logs[f.phone] || [];
+    if (!entries.length) return '—';
+    const items = entries
+      .map((e, i) => {
+        const dados = JSON.stringify(e.dados || {}, null, 1);
+        return `<li><b>${esc(e.tipo || 'outro')}</b> — ${esc(e.resumo_curto || '')}<pre>${esc(dados)}</pre></li>`;
+      })
+      .join('');
+    return `<details><summary>${entries.length} doc(s)</summary><ol>${items}</ol></details>`;
+  };
+
   const rows = families
     .map(
       (f) => `
@@ -49,6 +70,7 @@ module.exports = async (req, res) => {
       <td>${esc(f.criancas.join(', ') || '—')}</td>
       <td>${esc(f.escolas.join(', ') || '—')}</td>
       <td style="text-align:center">${f.documentosRegistrados}</td>
+      <td>${logDetail(f)}</td>
       <td style="text-align:center">${f.messagesIn} / ${f.messagesOut}</td>
       <td>${fmtDate(f.createdAt)}</td>
       <td>${fmtDate(f.lastContactAt)}</td>
@@ -75,6 +97,11 @@ module.exports = async (req, res) => {
   tr:hover { background: #f1f8f5; }
   .empty { padding: 40px; text-align: center; color: #888; }
   .refresh { font-size: 12px; color: #888; margin-top: 16px; }
+  details { font-size: 12px; }
+  details summary { cursor: pointer; color: #0f6e56; }
+  details ol { margin: 6px 0 0 16px; padding: 0; }
+  details li { margin-bottom: 6px; }
+  details pre { background: #f4f4f2; padding: 6px; border-radius: 4px; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -95,6 +122,7 @@ module.exports = async (req, res) => {
         <th>Criança(s)</th>
         <th>Escola(s)</th>
         <th>Docs</th>
+        <th>O que foi extraído</th>
         <th>Msgs in/out</th>
         <th>Conta aberta em</th>
         <th>Último contato</th>
