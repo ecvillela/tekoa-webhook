@@ -48,13 +48,20 @@ module.exports = async (req, res) => {
     logs[f.phone] = (st && st.log) || [];
   }
 
+  // Release 2 (28/08/2026): "tipo" virou "rotulo" + "regime" na extração —
+  // ver lib/claude.js e TEKOA - UX e Fluxos.md, §13.1. O painel mostra os
+  // dois, porque agora são informações independentes (o assunto e o
+  // comportamento do lembrete).
   const logDetail = (f) => {
     const entries = logs[f.phone] || [];
     if (!entries.length) return '—';
     const items = entries
       .map((e, i) => {
         const dados = JSON.stringify(e.dados || {}, null, 1);
-        return `<li><b>${esc(e.tipo || 'outro')}</b> — ${esc(e.resumo_curto || '')}<pre>${esc(dados)}</pre></li>`;
+        const extras = [];
+        if (e.pre_requisitos && e.pre_requisitos.length) extras.push(`<div>⚠️ ${e.pre_requisitos.length} pré-requisito(s)</div>`);
+        if (e.restricoes && e.restricoes.length) extras.push(`<div>ℹ️ ${e.restricoes.length} restrição(ões)</div>`);
+        return `<li><b>${esc(e.rotulo || 'outro')}</b> <span style="opacity:.6">(${esc(e.regime || '—')})</span> — ${esc(e.resumo_curto || '')}${extras.join('')}<pre>${esc(dados)}</pre></li>`;
       })
       .join('');
     return `<details><summary>${entries.length} doc(s)</summary><ol>${items}</ol></details>`;
