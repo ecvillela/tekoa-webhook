@@ -115,6 +115,7 @@ module.exports = async (req, res) => {
   <nav>
     <a href="/api/admin/dashboard?token=${esc(token)}">Painel interno (famílias)</a>
     <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde do Sistema →</a>
+    <a href="/api/admin/transcript?token=${esc(token)}">Transcript de teste (texto puro) →</a>
   </nav>
   <h1>TEKOA — Painel interno</h1>
   <div class="sub">${families.length} família(s) cadastrada(s). Só visível com o token de admin — não compartilhe este link.</div>
