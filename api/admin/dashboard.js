@@ -67,6 +67,12 @@ module.exports = async (req, res) => {
     return `<details><summary>${entries.length} doc(s)</summary><ol>${items}</ol></details>`;
   };
 
+  const custoBadge = (valor) => {
+    const ratio = valor / 29; // PLAN_VALUE_BRL — duplicado aqui de propósito pra não acoplar dashboard.js a lib/costs.js só por isso
+    const cor = ratio >= 1 ? '#c0392b' : ratio >= 0.7 ? '#b8860b' : '#555';
+    return `<span style="color:${cor};font-weight:${ratio >= 0.7 ? '600' : '400'}">R$ ${valor.toFixed(2)}</span>`;
+  };
+
   const rows = families
     .map(
       (f) => `
@@ -79,6 +85,7 @@ module.exports = async (req, res) => {
       <td style="text-align:center">${f.documentosRegistrados}</td>
       <td>${logDetail(f)}</td>
       <td style="text-align:center">${f.messagesIn} / ${f.messagesOut}</td>
+      <td>${custoBadge(f.custoTotalBRL || 0)}</td>
       <td>${fmtDate(f.createdAt)}</td>
       <td>${fmtDate(f.lastContactAt)}</td>
     </tr>`
@@ -114,6 +121,7 @@ module.exports = async (req, res) => {
 <body>
   <nav>
     <a href="/api/admin/dashboard?token=${esc(token)}">Painel interno (famílias)</a>
+    <a href="/api/admin/costs?token=${esc(token)}">Custos →</a>
     <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde do Sistema →</a>
     <a href="/api/admin/transcript?token=${esc(token)}">Transcript de teste (texto puro) →</a>
   </nav>
@@ -132,6 +140,7 @@ module.exports = async (req, res) => {
         <th>Docs</th>
         <th>O que foi extraído</th>
         <th>Msgs in/out</th>
+        <th>Custo</th>
         <th>Conta aberta em</th>
         <th>Último contato</th>
       </tr>
@@ -140,7 +149,7 @@ module.exports = async (req, res) => {
   </table>`
       : `<div class="empty">Nenhuma família cadastrada ainda.</div>`
   }
-  <div class="refresh">Atualiza a cada visita. <a href="?token=${esc(token)}">Recarregar</a></div>
+  <div class="refresh">Atualiza a cada visita. <a href="?token=${esc(token)}">Recarregar</a> · Estimativa de custo por token/mensagem, não fatura real — ver <a href="/api/admin/costs?token=${esc(token)}">detalhe de custos</a>.</div>
 </body>
 </html>`;
 
