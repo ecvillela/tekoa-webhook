@@ -19,8 +19,21 @@ module.exports = async (req, res) => {
       const change = entry && entry.changes && entry.changes[0];
       const messages = change && change.value && change.value.messages;
       if (messages && messages.length) {
-        const phone = messages[0].from;
-        await handleMessage(phone, messages[0]);
+        // Release 9 (04/09/2026): a Meta pode agrupar mais de uma mensagem no
+        // mesmo POST de webhook quando chegam próximas o suficiente (ex: uma
+        // imagem encaminhada e um texto digitado em seguida). Antes só
+        // messages[0] era processada — a(s) demais era(m) descartada(s) em
+        // silêncio, sem log nem fallback pro usuário (achado no teste ao
+        // vivo da Release 7, ver TEKOA - Pendências.md, item 4.24). Agora
+        // processa todas, em ordem, uma de cada vez; se uma falhar, loga e
+        // segue pras próximas em vez de travar o lote inteiro.
+        for (const message of messages) {
+          try {
+            await handleMessage(message.from, message);
+          } catch (err) {
+            console.error(`[webhook] falha ao processar uma mensagem do lote: ${err && err.message}`, err);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
