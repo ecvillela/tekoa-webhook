@@ -1,5 +1,4 @@
-const { isAuthorized, listFamilies } = require('../../lib/admin');
-const { kvGet } = require('../../lib/state');
+const { isAuthorized, establishSession, listFamilies } = require('../../lib/admin');
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -33,45 +32,12 @@ function statusBadge(assinatura) {
 module.exports = async (req, res) => {
   if (!isAuthorized(req)) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.status(401).send('<p style="font-family:sans-serif">Não autorizado. Acesse com <code>?token=SEU_ADMIN_TOKEN</code> na URL.</p>');
+    res.status(401).send('<p style="font-family:sans-serif">Não autorizado. Acesse com <code>?token=SEU_ADMIN_TOKEN</code> na URL (só na primeira visita — depois fica salvo num cookie).</p>');
     return;
   }
+  establishSession(req, res);
 
   const families = await listFamilies();
-  const token = req.query.token;
-
-  // Detalhe do que foi extraído de cada documento. Sem isto o painel só conta
-  // documentos, e não dá pra auditar o que o TEKOA entendeu de cada foto.
-  const logs = {};
-  for (const f of families) {
-    const st = await kvGet(`state:${f.phone}`);
-    logs[f.phone] = (st && st.log) || [];
-  }
-
-  // Release 2 (28/08/2026): "tipo" virou "rotulo" + "regime" na extração —
-  // ver lib/claude.js e TEKOA - UX e Fluxos.md, §13.1. O painel mostra os
-  // dois, porque agora são informações independentes (o assunto e o
-  // comportamento do lembrete).
-  const logDetail = (f) => {
-    const entries = logs[f.phone] || [];
-    if (!entries.length) return '—';
-    const items = entries
-      .map((e, i) => {
-        const dados = JSON.stringify(e.dados || {}, null, 1);
-        const extras = [];
-        if (e.pre_requisitos && e.pre_requisitos.length) extras.push(`<div>⚠️ ${e.pre_requisitos.length} pré-requisito(s)</div>`);
-        if (e.restricoes && e.restricoes.length) extras.push(`<div>ℹ️ ${e.restricoes.length} restrição(ões)</div>`);
-        return `<li><b>${esc(e.rotulo || 'outro')}</b> <span style="opacity:.6">(${esc(e.regime || '—')})</span> — ${esc(e.resumo_curto || '')}${extras.join('')}<pre>${esc(dados)}</pre></li>`;
-      })
-      .join('');
-    return `<details><summary>${entries.length} doc(s)</summary><ol>${items}</ol></details>`;
-  };
-
-  const custoBadge = (valor) => {
-    const ratio = valor / 29; // PLAN_VALUE_BRL — duplicado aqui de propósito pra não acoplar dashboard.js a lib/costs.js só por isso
-    const cor = ratio >= 1 ? '#c0392b' : ratio >= 0.7 ? '#b8860b' : '#555';
-    return `<span style="color:${cor};font-weight:${ratio >= 0.7 ? '600' : '400'}">R$ ${valor.toFixed(2)}</span>`;
-  };
 
   const rows = families
     .map(
@@ -83,9 +49,7 @@ module.exports = async (req, res) => {
       <td>${esc(f.criancas.join(', ') || '—')}</td>
       <td>${esc(f.escolas.join(', ') || '—')}</td>
       <td style="text-align:center">${f.documentosRegistrados}</td>
-      <td>${logDetail(f)}</td>
       <td style="text-align:center">${f.messagesIn} / ${f.messagesOut}</td>
-      <td>${custoBadge(f.custoTotalBRL || 0)}</td>
       <td>${fmtDate(f.createdAt)}</td>
       <td>${fmtDate(f.lastContactAt)}</td>
     </tr>`
@@ -102,29 +66,15 @@ module.exports = async (req, res) => {
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f6f2; color: #1a2e2a; margin: 0; padding: 24px; }
   h1 { font-size: 20px; margin-bottom: 4px; }
   .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
-  nav { margin-bottom: 18px; font-size: 13px; }
-  nav a { color: #0f6e56; text-decoration: none; margin-right: 16px; }
-  nav a:hover { text-decoration: underline; }
   table { border-collapse: collapse; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
   th, td { padding: 10px 12px; text-align: left; font-size: 13px; border-bottom: 1px solid #eee; }
   th { background: #0f6e56; color: #fff; font-weight: 600; position: sticky; top: 0; }
   tr:hover { background: #f1f8f5; }
   .empty { padding: 40px; text-align: center; color: #888; }
   .refresh { font-size: 12px; color: #888; margin-top: 16px; }
-  details { font-size: 12px; }
-  details summary { cursor: pointer; color: #0f6e56; }
-  details ol { margin: 6px 0 0 16px; padding: 0; }
-  details li { margin-bottom: 6px; }
-  details pre { background: #f4f4f2; padding: 6px; border-radius: 4px; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 11px; }
 </style>
 </head>
 <body>
-  <nav>
-    <a href="/api/admin/dashboard?token=${esc(token)}">Painel interno (famílias)</a>
-    <a href="/api/admin/costs?token=${esc(token)}">Custos →</a>
-    <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde do Sistema →</a>
-    <a href="/api/admin/transcript?token=${esc(token)}">Transcript de teste (texto puro) →</a>
-  </nav>
   <h1>TEKOA — Painel interno</h1>
   <div class="sub">${families.length} família(s) cadastrada(s). Só visível com o token de admin — não compartilhe este link.</div>
   ${
@@ -138,9 +88,7 @@ module.exports = async (req, res) => {
         <th>Criança(s)</th>
         <th>Escola(s)</th>
         <th>Docs</th>
-        <th>O que foi extraído</th>
         <th>Msgs in/out</th>
-        <th>Custo</th>
         <th>Conta aberta em</th>
         <th>Último contato</th>
       </tr>
@@ -149,7 +97,7 @@ module.exports = async (req, res) => {
   </table>`
       : `<div class="empty">Nenhuma família cadastrada ainda.</div>`
   }
-  <div class="refresh">Atualiza a cada visita. <a href="?token=${esc(token)}">Recarregar</a> · Estimativa de custo por token/mensagem, não fatura real — ver <a href="/api/admin/costs?token=${esc(token)}">detalhe de custos</a>.</div>
+  <div class="refresh">Atualiza a cada visita. <a href="/api/admin/dashboard">Recarregar</a></div>
 </body>
 </html>`;
 
