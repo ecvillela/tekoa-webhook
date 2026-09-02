@@ -11,7 +11,8 @@ module.exports = async (req, res) => {
   const child = state && state.family && state.family.children && state.family.children[0];
   await wa.sendText(
     phone,
-    `Bom dia! O dia de ${child && child.raw ? child.raw : 'hoje'}:\n(resumo de teste — nota: fora da janela de 24h isso precisa de um template aprovado pela Meta)`
+    `Bom dia! O dia de ${child && child.raw ? child.raw : 'hoje'}:\n(resumo de teste — nota: fora da janela de 24h isso precisa de um template aprovado pela Meta)`,
+    { kind: 'template:utility', meta: { tipo: 'bom_dia' } }
   );
   res.status(200).send('sent');
 };
