@@ -83,7 +83,7 @@ module.exports = async (req, res) => {
                   appCheckLine += inSubscribed
                     ? ' Esse app_id está na lista de apps inscritos na WABA (bate certinho).'
                             : ` Esse app_id NÃO está entre os inscritos na WABA (${subscribedIds.join(', ')}) — é uma causa raiz muito provável de mensagens reais não chegarem no webhook.`;
-          }              
+          }
     }
 
     const envRows = checkEnvPresence([
@@ -186,6 +186,7 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
 
                                           <nav>
                                               <a href="/api/admin/dashboard?token=${esc(token)}">← Painel interno (famílias)</a>
+                                                  <a href="/api/admin/costs?token=${esc(token)}">Custos</a>
                                                   <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde</a>
                                                     </nav>
 
@@ -208,13 +209,13 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
                                                                                                                             </div>
                                                                                                                               </div>
                                                                                                                                 <div style="font-size:12px;color:#888;margin:-16px 0 8px;">Acesso: <a href="https://business.facebook.com/settings/people" target="_blank" rel="noopener">Business Settings → Pessoas</a> mostra quem é admin. Melhor prática de longo prazo: criar um Usuário do Sistema dedicado (não depende de login pessoal) — ainda pendente, ver checklist abaixo.</div>
-                                                                                                                                
+
                                                                                                                                   <h2>Diagnóstico: o token bate com o app certo?</h2>
                                                                                                                                     <div class="card" style="border:2px solid ${appCheckOk === true ? '#1e8449' : appCheckOk === false ? '#c0392b' : '#d8d4c8'};">
                                                                                                                                         <div style="font-weight:600;font-size:14px;margin-bottom:6px;">${dot(appCheckOk)}${appCheckOk === true ? 'Token bate com o app TEKOA e com a WABA' : appCheckOk === false ? 'Token NÃO bate — provável causa raiz' : 'Não deu pra confirmar automaticamente'}</div>
                                                                                                                                             <div style="font-size:13px;color:#333;line-height:1.5;">${esc(appCheckLine)}</div>
                                                                                                                                               </div>
-                                                                                                                                              
+
                                                                                                                                                 <h2>Fluxo de uma mensagem</h2>
                                                                                                                                                   <div class="diagram">
                                                                                                                                                       <div class="diagram-col">
@@ -238,18 +239,18 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
                                                                                                                                                                                                                                                     ${box('Resposta', 'volta pelo mesmo caminho', null, 'Meta entrega ao usuário no WhatsApp')}
                                                                                                                                                                                                                                                         </div>
                                                                                                                                                                                                                                                           </div>
-                                                                                                                                                                                                                                                          
+
                                                                                                                                                                                                                                                             <h2>Variáveis de ambiente (Vercel)</h2>
                                                                                                                                                                                                                                                               <table>
                                                                                                                                                                                                                                                                   <thead><tr><th>Nome</th><th>Status</th><th>Nota</th></tr></thead>
                                                                                                                                                                                                                                                                       <tbody>${envTableRows}</tbody>
                                                                                                                                                                                                                                                                         </table>
-                                                                                                                                                                                                                                                                        
+
                                                                                                                                                                                                                                                                           <h2>Links rápidos</h2>
                                                                                                                                                                                                                                                                             <div class="card">
                                                                                                                                                                                                                                                                                 <ul class="checklist">${linksHtml}</ul>
                                                                                                                                                                                                                                                                                   </div>
-                                                                                                                                                                                                                                                                                  
+
                                                                                                                                                                                                                                                                                     <h2>Quando quebrar, comece por aqui (lição de 25-26/08/2026)</h2>
                                                                                                                                                                                                                                                                                       <div class="card">
                                                                                                                                                                                                                                                                                           <ol class="checklist">
@@ -265,7 +266,7 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
                                                                                                                                                                                                                                                                                                                                                       <li>Existe um app backup <strong>toca_app</strong> (1081103350954918, mesma business MTG consultoria), com repo e Vercel próprios e totalmente separados do TEKOA — ver links acima. Ainda sem número de telefone/WABA configurados.</li>
                                                                                                                                                                                                                                                                                                                                                           </ol>
                                                                                                                                                                                                                                                                                                                                                             </div>
-                                                                                                                                                                                                                                                                                                                                                            
+
                                                                                                                                                                                                                                                                                                                                                               <div class="refresh">Atualiza a cada visita (as checagens ao vivo rodam de novo). <a href="?token=${esc(token)}">Recarregar</a></div>
                                                                                                                                                                                                                                                                                                                                                               </body>
                                                                                                                                                                                                                                                                                                                                                               </html>`;
