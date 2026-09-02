@@ -1,4 +1,4 @@
-const { isAuthorized } = require('../../lib/admin');
+const { isAuthorized, establishSession } = require('../../lib/admin');
 const { checkKV, checkWhatsAppToken, checkWabaSubscription, checkAnthropicKey, checkGeminiKey, checkEnvPresence } = require('../../lib/health');
 
 const TEKOA_APP_ID = '1425427812730921';
@@ -40,11 +40,11 @@ const arrowRight = `<div style="display:flex;align-items:center;justify-content:
 module.exports = async (req, res) => {
     if (!isAuthorized(req)) {
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
-          res.status(401).send('<p style="font-family:sans-serif">Não autorizado. Acesse com <code>?token=SEU_ADMIN_TOKEN</code> na URL.</p>');
+          res.status(401).send('<p style="font-family:sans-serif">Não autorizado. Acesse com <code>?token=SEU_ADMIN_TOKEN</code> na URL (só na primeira visita — depois fica salvo num cookie).</p>');
           return;
     }
+    establishSession(req, res);
 
-    const token = req.query.token;
     const [kv, wa, waba] = await Promise.all([checkKV(), checkWhatsAppToken(), checkWabaSubscription()]);
     const claude = checkAnthropicKey();
 
@@ -185,9 +185,9 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
                                         <div class="sub">Status ao vivo dos componentes, mapa de onde cada coisa mora, e checklist de quando algo quebrar. Nunca mostra valores de credenciais — só se estão presentes e (quando dá) se a chamada funciona.</div>
 
                                           <nav>
-                                              <a href="/api/admin/dashboard?token=${esc(token)}">← Painel interno (famílias)</a>
-                                                  <a href="/api/admin/costs?token=${esc(token)}">Custos</a>
-                                                  <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde</a>
+                                              <a href="/api/admin/dashboard">← Painel interno (famílias)</a>
+                                                  <a href="/api/admin/costs">Custos</a>
+                                                  <a href="/api/admin/architecture">Arquitetura e Saúde</a>
                                                     </nav>
 
                                                       <h2>Quem tem acesso a tudo isso</h2>
@@ -267,7 +267,7 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
                                                                                                                                                                                                                                                                                                                                                           </ol>
                                                                                                                                                                                                                                                                                                                                                             </div>
 
-                                                                                                                                                                                                                                                                                                                                                              <div class="refresh">Atualiza a cada visita (as checagens ao vivo rodam de novo). <a href="?token=${esc(token)}">Recarregar</a></div>
+                                                                                                                                                                                                                                                                                                                                                              <div class="refresh">Atualiza a cada visita (as checagens ao vivo rodam de novo). <a href="/api/admin/architecture">Recarregar</a></div>
                                                                                                                                                                                                                                                                                                                                                               </body>
                                                                                                                                                                                                                                                                                                                                                               </html>`;
 
