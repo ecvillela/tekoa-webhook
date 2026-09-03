@@ -1,4 +1,4 @@
-const { isAuthorized, listFamilies } = require('../../lib/admin');
+const { isAuthorized, establishSession, listFamilies } = require('../../lib/admin');
 const { kvGet } = require('../../lib/state');
 
 function esc(s) {
@@ -33,12 +33,12 @@ function statusBadge(assinatura) {
 module.exports = async (req, res) => {
   if (!isAuthorized(req)) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.status(401).send('<p style="font-family:sans-serif">Não autorizado. Acesse com <code>?token=SEU_ADMIN_TOKEN</code> na URL.</p>');
+    res.status(401).send('<p style="font-family:sans-serif">Não autorizado. Acesse com <code>?token=SEU_ADMIN_TOKEN</code> na URL (só na primeira visita — depois fica salvo num cookie).</p>');
     return;
   }
+  establishSession(req, res);
 
   const families = await listFamilies();
-  const token = req.query.token;
 
   // Detalhe do que foi extraído de cada documento. Sem isto o painel só conta
   // documentos, e não dá pra auditar o que o TEKOA entendeu de cada foto.
@@ -120,10 +120,10 @@ module.exports = async (req, res) => {
 </head>
 <body>
   <nav>
-    <a href="/api/admin/dashboard?token=${esc(token)}">Painel interno (famílias)</a>
-    <a href="/api/admin/costs?token=${esc(token)}">Custos →</a>
-    <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde do Sistema →</a>
-    <a href="/api/admin/transcript?token=${esc(token)}">Transcript de teste (texto puro) →</a>
+    <a href="/api/admin/dashboard">Painel interno (famílias)</a>
+    <a href="/api/admin/costs">Custos →</a>
+    <a href="/api/admin/architecture">Arquitetura e Saúde do Sistema →</a>
+    <a href="/api/admin/transcript">Transcript de teste (texto puro) →</a>
   </nav>
   <h1>TEKOA — Painel interno</h1>
   <div class="sub">${families.length} família(s) cadastrada(s). Só visível com o token de admin — não compartilhe este link.</div>
@@ -149,7 +149,7 @@ module.exports = async (req, res) => {
   </table>`
       : `<div class="empty">Nenhuma família cadastrada ainda.</div>`
   }
-  <div class="refresh">Atualiza a cada visita. <a href="?token=${esc(token)}">Recarregar</a> · Estimativa de custo por token/mensagem, não fatura real — ver <a href="/api/admin/costs?token=${esc(token)}">detalhe de custos</a>.</div>
+  <div class="refresh">Atualiza a cada visita. <a href="/api/admin/dashboard">Recarregar</a> · Estimativa de custo por token/mensagem, não fatura real — ver <a href="/api/admin/costs">detalhe de custos</a>.</div>
 </body>
 </html>`;
 
