@@ -144,6 +144,7 @@ module.exports = async (req, res) => {
 <body>
   <nav>
     <a href="/api/admin/dashboard?token=${esc(token)}">← Painel interno (famílias)</a>
+    <a href="/api/admin/waitlist?token=${esc(token)}">Lista de espera</a>
     <a href="/api/admin/costs?token=${esc(token)}">Custos</a>
     <a href="/api/admin/architecture?token=${esc(token)}">Arquitetura e Saúde do Sistema</a>
   </nav>

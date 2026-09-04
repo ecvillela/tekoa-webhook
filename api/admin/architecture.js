@@ -186,6 +186,7 @@ GEMINI_API_KEY: 'Chave gratuita do Google AI Studio (aistudio.google.com/apikey)
 
                                           <nav>
                                               <a href="/api/admin/dashboard">← Painel interno (famílias)</a>
+                                                  <a href="/api/admin/waitlist">Lista de espera</a>
                                                   <a href="/api/admin/costs">Custos</a>
                                                   <a href="/api/admin/architecture">Arquitetura e Saúde</a>
                                                     </nav>

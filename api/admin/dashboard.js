@@ -121,6 +121,7 @@ module.exports = async (req, res) => {
 <body>
   <nav>
     <a href="/api/admin/dashboard">Painel interno (famílias)</a>
+    <a href="/api/admin/waitlist">Lista de espera →</a>
     <a href="/api/admin/costs">Custos →</a>
     <a href="/api/admin/architecture">Arquitetura e Saúde do Sistema →</a>
     <a href="/api/admin/transcript">Transcript de teste (texto puro) →</a>
